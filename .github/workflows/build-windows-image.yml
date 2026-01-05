@@ -1,0 +1,27 @@
+name: Build Windows Base Image
+
+on: 
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  build-and-push:
+    runs-on: windows-2022  # Free Windows runner with Docker
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build Windows Docker image
+        run: |
+          docker build -f Dockerfile.base -t java21-maven-base:latest .
+      
+      - name: Save image as artifact
+        run: |
+          docker save java21-maven-base:latest -o java21-maven-base.tar
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: java21-maven-base.tar
+          retention-days: 1
