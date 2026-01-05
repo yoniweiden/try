@@ -1,62 +1,27 @@
-# Use Windows Server Core matching your Windows Server 2022
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
+name: Build Windows Base Image
 
-# Metadata
-LABEL description="Base image for Java 21 JDK (Temurin) with Maven 3.9.6 on Windows"
-LABEL java.version="21"
-LABEL maven.version="3.9.6"
+on: 
+  workflow_dispatch:  # Manual trigger
 
-# Set PowerShell as default shell
-SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
-
-# Create directories
-RUN New-Item -ItemType Directory -Path 'C:\temp' -Force; \
-    New-Item -ItemType Directory -Path 'C:\app' -Force
-
-# Install Java 21 JDK (Eclipse Temurin)
-RUN Write-Host 'Downloading Eclipse Temurin JDK 21...'; \
-    $downloadUrl = 'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse'; \
-    Invoke-WebRequest -Uri $downloadUrl -OutFile 'C:\temp\jdk.zip' -UseBasicParsing; \
-    Write-Host 'Extracting Java JDK...'; \
-    Expand-Archive -Path 'C:\temp\jdk.zip' -DestinationPath 'C:\temp'; \
-    $jdkDir = Get-ChildItem -Path 'C:\temp' -Filter 'jdk-*' -Directory | Select-Object -First 1; \
-    Move-Item -Path $jdkDir.FullName -Destination 'C:\java'; \
-    Remove-Item 'C:\temp\jdk.zip' -Force; \
-    Write-Host 'Java JDK installed successfully'
-
-# Set JAVA_HOME environment variable
-RUN [Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\java', [EnvironmentVariableTarget]::Machine); \
-    $path = [Environment]::GetEnvironmentVariable('PATH', [EnvironmentVariableTarget]::Machine); \
-    [Environment]::SetEnvironmentVariable('PATH', \"C:\java\bin;$path\", [EnvironmentVariableTarget]::Machine); \
-    Write-Host 'JAVA_HOME set to C:\java'
-
-# Verify Java installation
-RUN java -version; \
-    javac -version
-
-# Install Maven 3.9.6
-RUN Write-Host 'Downloading Maven 3.9.6...'; \
-    $mavenUrl = 'https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.zip'; \
-    Invoke-WebRequest -Uri $mavenUrl -OutFile 'C:\temp\maven.zip' -UseBasicParsing; \
-    Write-Host 'Extracting Maven...'; \
-    Expand-Archive -Path 'C:\temp\maven.zip' -DestinationPath 'C:\'; \
-    Remove-Item 'C:\temp\maven.zip' -Force; \
-    Write-Host 'Maven installed successfully'
-
-# Set MAVEN_HOME and update PATH
-RUN [Environment]::SetEnvironmentVariable('MAVEN_HOME', 'C:\apache-maven-3.9.6', [EnvironmentVariableTarget]::Machine); \
-    $path = [Environment]::GetEnvironmentVariable('PATH', [EnvironmentVariableTarget]::Machine); \
-    [Environment]::SetEnvironmentVariable('PATH', \"C:\apache-maven-3.9.6\bin;$path\", [EnvironmentVariableTarget]::Machine); \
-    Write-Host 'MAVEN_HOME set to C:\apache-maven-3.9.6'
-
-# Verify Maven installation
-RUN mvn -version
-
-# Create .m2 directory for Maven local repository
-RUN New-Item -ItemType Directory -Path 'C:\Users\ContainerAdministrator\.m2' -Force
-
-# Set working directory
-WORKDIR /app
-
-# Default command
-CMD ["powershell"]
+jobs:
+  build-and-push:
+    runs-on: windows-2022  # Free Windows runner with Docker
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build Windows Docker image
+        run: |
+          docker build -f Dockerfile.base -t java21-maven-base:latest .
+      
+      - name: Save image as artifact
+        run: |
+          docker save java21-maven-base:latest -o java21-maven-base.tar
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: java21-maven-base.tar
+          retention-days: 1
